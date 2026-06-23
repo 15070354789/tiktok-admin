@@ -1,0 +1,15 @@
+{
+  "name": "tiktok-admin",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "mysql2": "^3.6.0",
+    "axios": "^1.6.0",
+    "crypto": "^1.0.1",
+    "express-session": "^1.17.3"
+  }
+}
