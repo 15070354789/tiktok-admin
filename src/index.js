@@ -85,7 +85,7 @@ async function getShopInfo(accessToken, shopId) {
   const timestamp = Math.floor(Date.now() / 1000);
   const params = { app_key: APP_KEY, timestamp, shop_id: shopId };
   params.sign = generateSign(path, params);
-  const url = 'https://open-api.tiktokshop.com' + path;
+  const url = 'https://open-api.tiktokshop.com' + tkPath;
   const res = await axios.get(url, { params: { ...params, access_token: accessToken } });
   return res.data;
 }
@@ -508,22 +508,32 @@ app.get('/auth/callback', async (req, res) => {
 
   try {
     const timestamp = Math.floor(Date.now() / 1000);
-    const path = '/api/token/getAccessToken';
-    const params = { app_key: APP_KEY, timestamp, auth_code: code, grant_type: 'authorized_code' };
-    params.sign = generateSign(path, params);
+    const tkPath = '/api/token/getAccessToken';
 
-    const tokenRes = await axios.get('https://open-api.tiktokshop.com' + path, { params });
-    const data = tokenRes.data?.data;
+    // Try both API domains
+    let tokenRes, data;
+    const tokenParams = { app_key: APP_KEY, timestamp, auth_code: code, grant_type: 'authorized_code' };
+    tokenParams.sign = generateSign(tkPath, tokenParams);
+
+    try {
+      tokenRes = await axios.get('https://open-api.tiktok.com' + tkPath, { params: tokenParams });
+      data = tokenRes.data?.data;
+    } catch(e1) {
+      tokenRes = await axios.get('https://open-api.tiktokshop.com' + path, { params: tokenParams });
+      data = tokenRes.data?.data;
+    }
+
     if (!data?.access_token) {
       return res.send('授权失败: ' + JSON.stringify(tokenRes.data));
     }
 
+    const actualShopId = shop_id || data.open_id || data.seller_base_region || 'unknown';
     const db = await getDB();
     await db.execute(
       `INSERT INTO tiktok_tokens (shop_id, shop_name, access_token, refresh_token, expire_time)
        VALUES (?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE access_token=VALUES(access_token), refresh_token=VALUES(refresh_token), expire_time=VALUES(expire_time)`,
-      [data.seller_base_region || shop_id || 'unknown', '', data.access_token, data.refresh_token, data.access_token_expire_in]
+      [actualShopId, data.seller_name || '', data.access_token, data.refresh_token || '', data.access_token_expire_in || 0]
     );
     await db.end();
 
