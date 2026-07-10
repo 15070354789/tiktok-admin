@@ -34,6 +34,19 @@ async function getDB() {
   return mysql.createConnection(dbConfig);
 }
 
+// 检查表中是否存在某字段，不存在则自动ALTER TABLE补上
+// 解决CREATE TABLE IF NOT EXISTS对已存在旧表结构不生效的问题
+async function ensureColumn(db, table, column, definition) {
+  const [rows] = await db.execute(
+    `SELECT COUNT(*) as cnt FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+    [table, column]
+  );
+  if (rows[0].cnt === 0) {
+    console.log(`[MIGRATION] Adding missing column ${column} to ${table}`);
+    await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
 async function initDB() {
   const db = await getDB();
   await db.execute(`
@@ -63,6 +76,18 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // 迁移：补齐旧表可能缺失的字段（针对表已存在但结构较老的情况）
+  await ensureColumn(db, 'tiktok_orders', 'shop_id', 'VARCHAR(100)');
+  await ensureColumn(db, 'tiktok_orders', 'shop_name', 'VARCHAR(200)');
+  await ensureColumn(db, 'tiktok_orders', 'status', 'VARCHAR(50)');
+  await ensureColumn(db, 'tiktok_orders', 'total_amount', 'DECIMAL(10,2)');
+  await ensureColumn(db, 'tiktok_orders', 'currency', 'VARCHAR(20)');
+  await ensureColumn(db, 'tiktok_orders', 'create_time', 'BIGINT');
+  await ensureColumn(db, 'tiktok_orders', 'buyer_uid', 'VARCHAR(100)');
+  await ensureColumn(db, 'tiktok_orders', 'sku_list', 'TEXT');
+  await ensureColumn(db, 'tiktok_tokens', 'shop_cipher', 'VARCHAR(200)');
+
   await db.end();
   console.log('DB tables ready');
 }
