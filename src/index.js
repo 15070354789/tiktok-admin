@@ -109,6 +109,8 @@ async function syncOrders(shopId, accessToken, shopName, shopCipher) {
     app_key: APP_KEY,
     timestamp,
     shop_cipher: shopCipher,
+    shop_id: shopId,        
+    version: '202309', 
     page_size: 50,
     sort_field: 'create_time',
     sort_order: 'DESC',
@@ -123,7 +125,7 @@ async function syncOrders(shopId, accessToken, shopName, shopCipher) {
         create_time_lt: timestamp,
       },
       {
-        params,
+        params: { ...params, access_token: accessToken }, 
         headers: { 'x-tts-access-token': accessToken },
       }
     );
