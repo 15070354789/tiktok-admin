@@ -85,7 +85,7 @@ async function getShopInfo(accessToken, shopId) {
   const timestamp = Math.floor(Date.now() / 1000);
   const params = { app_key: APP_KEY, timestamp, shop_id: shopId };
   params.sign = generateSign(path, params);
-  const url = 'https://open-api.tiktokshop.com' + tkPath;
+  const url = 'https://open-api.tiktokglobalshop.com' + tkPath;
   const res = await axios.get(url, { params: { ...params, access_token: accessToken } });
   return res.data;
 }
@@ -109,7 +109,7 @@ async function syncOrders(shopId, accessToken, shopName) {
   params.sign = generateSign(path, params);
   try {
     const res = await axios.post(
-      'https://open-api.tiktokshop.com' + path,
+      'https://open-api.tiktokglobalshop.com' + path,
       {},
       { params: { ...params, access_token: accessToken } }
     );
@@ -519,7 +519,7 @@ app.get('/auth/callback', async (req, res) => {
       tokenRes = await axios.get('https://open-api.tiktok.com' + tkPath, { params: tokenParams });
       data = tokenRes.data?.data;
     } catch(e1) {
-      tokenRes = await axios.get('https://open-api.tiktokshop.com' + path, { params: tokenParams });
+      tokenRes = await axios.get('https://open-api.tiktokglobalshop.com' + path, { params: tokenParams });
       data = tokenRes.data?.data;
     }
 
