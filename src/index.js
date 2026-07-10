@@ -44,6 +44,7 @@ async function initDB() {
       access_token TEXT,
       refresh_token TEXT,
       expire_time BIGINT,
+      shop_cipher VARCHAR(200),
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `);
@@ -66,7 +67,8 @@ async function initDB() {
   console.log('DB tables ready');
 }
 
-// ─── TikTok Sign ──────────────────────────────────────────────────────────────
+// ─── TikTok Sign (V2) ─────────────────────────────────────────────────────────
+// V2签名规则：APP_SECRET + path + 排序后的query参数(不含sign/access_token) + APP_SECRET，再HMAC-SHA256
 function generateSign(path, params) {
   const sortedKeys = Object.keys(params).sort();
   let str = APP_SECRET + path;
@@ -80,39 +82,56 @@ function generateSign(path, params) {
 }
 
 // ─── TikTok API ───────────────────────────────────────────────────────────────
-async function getShopInfo(accessToken, shopId) {
-  const path = '/api/shop/get_authorized_shop';
+
+// 获取店铺信息 + shop_cipher（V2）
+async function getShopInfo(accessToken) {
+  const path = '/authorization/202309/shops';
   const timestamp = Math.floor(Date.now() / 1000);
-  const params = { app_key: APP_KEY, timestamp, shop_id: shopId };
+  const params = { app_key: APP_KEY, timestamp };
   params.sign = generateSign(path, params);
-  const url = 'https://open-api.tiktokglobalshop.com' + tkPath;
-  const res = await axios.get(url, { params: { ...params, access_token: accessToken } });
+  const url = 'https://open-api.tiktokglobalshop.com' + path;
+  const res = await axios.get(url, {
+    params,
+    headers: { 'x-tts-access-token': accessToken },
+  });
   return res.data;
 }
 
-async function syncOrders(shopId, accessToken, shopName) {
+// 同步订单（V2, API版本202309）
+async function syncOrders(shopId, accessToken, shopName, shopCipher) {
   const db = await getDB();
-  const path = '/api/orders/search';
+  const path = '/order/202309/orders/search';
   const timestamp = Math.floor(Date.now() / 1000);
   // last 30 days
   const createTimeFrom = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
+
   const params = {
     app_key: APP_KEY,
     timestamp,
-    shop_id: shopId,
-    create_time_from: createTimeFrom,
-    create_time_to: timestamp,
+    shop_cipher: shopCipher,
     page_size: 50,
-    sort_field: 'CREATE_TIME',
+    sort_field: 'create_time',
     sort_order: 'DESC',
   };
   params.sign = generateSign(path, params);
+
   try {
     const res = await axios.post(
       'https://open-api.tiktokglobalshop.com' + path,
-      {},
-      { params: { ...params, access_token: accessToken } }
+      {
+        create_time_ge: createTimeFrom,
+        create_time_lt: timestamp,
+      },
+      {
+        params,
+        headers: { 'x-tts-access-token': accessToken },
+      }
     );
+
+    if (res.data?.code !== 0) {
+      throw new Error(`TikTok API error: ${JSON.stringify(res.data)}`);
+    }
+
     const orders = res.data?.data?.order_list || [];
     for (const order of orders) {
       await db.execute(
@@ -120,15 +139,15 @@ async function syncOrders(shopId, accessToken, shopName) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE status=VALUES(status), total_amount=VALUES(total_amount)`,
         [
-          order.order_id,
+          order.order_id ?? order.id,
           shopId,
           shopName,
-          order.order_status,
+          order.order_status ?? order.status,
           order.payment?.total_amount || 0,
           order.payment?.currency || 'VND',
           order.create_time,
-          order.buyer_uid || '',
-          JSON.stringify(order.sku_list || []),
+          order.buyer_uid || order.user_id || '',
+          JSON.stringify(order.line_items || order.sku_list || []),
         ]
       );
     }
@@ -304,6 +323,12 @@ app.get(['/', '/dashboard'], requireLogin, async (req, res) => {
         </div>
       ` : ''}
 
+      ${req.query.error === 'sync' ? `
+        <div class="alert" style="background:#2e0d14;border:1px solid #5c1a2e;color:#ff4d6a">
+          ⚠️ 同步过程中发生错误，请查看服务器日志了解详情。
+        </div>
+      ` : ''}
+
       <div class="stats">
         <div class="stat">
           <div class="label">总订单数</div>
@@ -470,7 +495,7 @@ app.get('/shops', requireLogin, async (req, res) => {
         ${shops.length > 0 ? `
         <table>
           <thead>
-            <tr><th>店铺名称</th><th>Shop ID</th><th>Token状态</th><th>更新时间</th></tr>
+            <tr><th>店铺名称</th><th>Shop ID</th><th>Shop Cipher</th><th>Token状态</th><th>更新时间</th></tr>
           </thead>
           <tbody>
             ${shops.map(s => {
@@ -479,6 +504,7 @@ app.get('/shops', requireLogin, async (req, res) => {
               <tr>
                 <td>${s.shop_name || '-'}</td>
                 <td style="font-family:monospace;font-size:13px">${s.shop_id}</td>
+                <td style="font-family:monospace;font-size:12px">${s.shop_cipher ? '✅ 已获取' : '❌ 缺失'}</td>
                 <td>${expired
                   ? '<span class="badge badge-red">已过期</span>'
                   : '<span class="badge badge-green">有效</span>'}</td>
@@ -508,32 +534,47 @@ app.get('/auth/callback', async (req, res) => {
 
   try {
     const timestamp = Math.floor(Date.now() / 1000);
-    const tkPath = '/api/token/getAccessToken';
+    const tkPath = '/api/v2/token/get';
 
-    // Try both API domains
+    const tokenParams = { app_key: APP_KEY, app_secret: APP_SECRET, auth_code: code, grant_type: 'authorized_code' };
+
     let tokenRes, data;
-    const tokenParams = { app_key: APP_KEY, timestamp, auth_code: code, grant_type: 'authorized_code' };
-    tokenParams.sign = generateSign(tkPath, tokenParams);
-
     try {
-      tokenRes = await axios.get('https://open-api.tiktok.com' + tkPath, { params: tokenParams });
+      tokenRes = await axios.get('https://auth.tiktok-shops.com' + tkPath, { params: tokenParams });
       data = tokenRes.data?.data;
-    } catch(e1) {
-      tokenRes = await axios.get('https://open-api.tiktokglobalshop.com' + path, { params: tokenParams });
-      data = tokenRes.data?.data;
+    } catch (e1) {
+      console.error('Token fetch failed:', e1?.response?.data || e1.message);
+      throw e1;
     }
 
     if (!data?.access_token) {
       return res.send('授权失败: ' + JSON.stringify(tokenRes.data));
     }
 
-    const actualShopId = shop_id || data.open_id || data.seller_base_region || 'unknown';
+    // 拿到access_token后，调用获取店铺信息接口拿shop_cipher
+    let shopCipher = '';
+    let actualShopId = shop_id || data.open_id || 'unknown';
+    let sellerName = data.seller_name || '';
+
+    try {
+      const shopInfo = await getShopInfo(data.access_token);
+      const authorizedShop = shopInfo?.data?.shops?.[0];
+      if (authorizedShop) {
+        shopCipher = authorizedShop.cipher || '';
+        actualShopId = authorizedShop.id || actualShopId;
+        sellerName = authorizedShop.name || sellerName;
+      }
+    } catch (e2) {
+      console.error('getShopInfo failed:', e2?.response?.data || e2.message);
+      // 即使拿shop_cipher失败，也继续保存token，后续可以重新授权补齐
+    }
+
     const db = await getDB();
     await db.execute(
-      `INSERT INTO tiktok_tokens (shop_id, shop_name, access_token, refresh_token, expire_time)
-       VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE access_token=VALUES(access_token), refresh_token=VALUES(refresh_token), expire_time=VALUES(expire_time)`,
-      [actualShopId, data.seller_name || '', data.access_token, data.refresh_token || '', data.access_token_expire_in || 0]
+      `INSERT INTO tiktok_tokens (shop_id, shop_name, access_token, refresh_token, expire_time, shop_cipher)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE access_token=VALUES(access_token), refresh_token=VALUES(refresh_token), expire_time=VALUES(expire_time), shop_cipher=VALUES(shop_cipher)`,
+      [actualShopId, sellerName, data.access_token, data.refresh_token || '', data.access_token_expire_in || 0, shopCipher]
     );
     await db.end();
 
@@ -557,19 +598,24 @@ app.get('/api/sync', requireLogin, async (req, res) => {
 
     let total = 0;
     for (const shop of shops) {
+      if (!shop.shop_cipher) {
+        console.error(`Sync skipped for shop ${shop.shop_id}: missing shop_cipher, please re-authorize`);
+        continue;
+      }
       try {
-        const count = await syncOrders(shop.shop_id, shop.access_token, shop.shop_name);
+        const count = await syncOrders(shop.shop_id, shop.access_token, shop.shop_name, shop.shop_cipher);
         total += count;
       } catch (e) {
-  console.error(`Sync failed for shop ${shop.shop_id}:`, e.message);
-  if (e.response) {
-    console.error(`Status: ${e.response.status}`);
-    console.error(`Response data:`, JSON.stringify(e.response.data));
-  }
-}
+        console.error(`Sync failed for shop ${shop.shop_id}:`, e.message);
+        if (e.response) {
+          console.error(`Status: ${e.response.status}`);
+          console.error(`Response data:`, JSON.stringify(e.response.data));
+        }
+      }
     }
     res.redirect('/dashboard?synced=' + total);
   } catch (e) {
+    console.error('Sync route failed:', e.message);
     res.redirect('/dashboard?error=sync');
   }
 });
