@@ -149,7 +149,7 @@ async function syncOrders(shopId, accessToken, shopName, shopCipher) {
       throw new Error(`TikTok API error: ${JSON.stringify(res.data)}`);
     }
 
-    const orders = res.data?.data?.order_list || [];
+    const orders = res.data?.data?.orders || [];
     console.log(`[DEBUG] Shop ${shopId} matched ${orders.length} orders, time range: ${createTimeFrom} - ${timestamp}`);
     for (const order of orders) {
       await db.execute(
