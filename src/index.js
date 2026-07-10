@@ -561,8 +561,12 @@ app.get('/api/sync', requireLogin, async (req, res) => {
         const count = await syncOrders(shop.shop_id, shop.access_token, shop.shop_name);
         total += count;
       } catch (e) {
-        console.error(`Sync failed for shop ${shop.shop_id}:`, e.message);
-      }
+  console.error(`Sync failed for shop ${shop.shop_id}:`, e.message);
+  if (e.response) {
+    console.error(`Status: ${e.response.status}`);
+    console.error(`Response data:`, JSON.stringify(e.response.data));
+  }
+}
     }
     res.redirect('/dashboard?synced=' + total);
   } catch (e) {
