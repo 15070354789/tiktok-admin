@@ -34,16 +34,21 @@ async function getDB() {
   return mysql.createConnection(dbConfig);
 }
 
-// 检查表中是否存在某字段，不存在则自动ALTER TABLE补上
-// 解决CREATE TABLE IF NOT EXISTS对已存在旧表结构不生效的问题
-async function ensureColumn(db, table, column, definition) {
+// 检查表中是否存在某字段，不存在则自动ALTER TABLE补上；
+// 如果字段已存在但类型对不上（比如老表里create_time是DATETIME，实际需要BIGINT），也自动MODIFY COLUMN修正
+async function ensureColumn(db, table, column, definition, expectedDataType) {
   const [rows] = await db.execute(
-    `SELECT COUNT(*) as cnt FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+    `SELECT DATA_TYPE as dataType FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
     [table, column]
   );
-  if (rows[0].cnt === 0) {
+  if (rows.length === 0) {
     console.log(`[MIGRATION] Adding missing column ${column} to ${table}`);
     await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    return;
+  }
+  if (expectedDataType && rows[0].dataType.toLowerCase() !== expectedDataType.toLowerCase()) {
+    console.log(`[MIGRATION] Fixing column type for ${table}.${column}: ${rows[0].dataType} -> ${expectedDataType}`);
+    await db.execute(`ALTER TABLE ${table} MODIFY COLUMN ${column} ${definition}`);
   }
 }
 
@@ -77,16 +82,16 @@ async function initDB() {
     )
   `);
 
-  // 迁移：补齐旧表可能缺失的字段（针对表已存在但结构较老的情况）
-  await ensureColumn(db, 'tiktok_orders', 'shop_id', 'VARCHAR(100)');
-  await ensureColumn(db, 'tiktok_orders', 'shop_name', 'VARCHAR(200)');
-  await ensureColumn(db, 'tiktok_orders', 'status', 'VARCHAR(50)');
-  await ensureColumn(db, 'tiktok_orders', 'total_amount', 'DECIMAL(10,2)');
-  await ensureColumn(db, 'tiktok_orders', 'currency', 'VARCHAR(20)');
-  await ensureColumn(db, 'tiktok_orders', 'create_time', 'BIGINT');
-  await ensureColumn(db, 'tiktok_orders', 'buyer_uid', 'VARCHAR(100)');
-  await ensureColumn(db, 'tiktok_orders', 'sku_list', 'TEXT');
-  await ensureColumn(db, 'tiktok_tokens', 'shop_cipher', 'VARCHAR(200)');
+  // 迁移：补齐旧表可能缺失的字段，并修正类型不匹配的字段（针对表已存在但结构较老的情况）
+  await ensureColumn(db, 'tiktok_orders', 'shop_id', 'VARCHAR(100)', 'varchar');
+  await ensureColumn(db, 'tiktok_orders', 'shop_name', 'VARCHAR(200)', 'varchar');
+  await ensureColumn(db, 'tiktok_orders', 'status', 'VARCHAR(50)', 'varchar');
+  await ensureColumn(db, 'tiktok_orders', 'total_amount', 'DECIMAL(10,2)', 'decimal');
+  await ensureColumn(db, 'tiktok_orders', 'currency', 'VARCHAR(20)', 'varchar');
+  await ensureColumn(db, 'tiktok_orders', 'create_time', 'BIGINT', 'bigint');
+  await ensureColumn(db, 'tiktok_orders', 'buyer_uid', 'VARCHAR(100)', 'varchar');
+  await ensureColumn(db, 'tiktok_orders', 'sku_list', 'TEXT', 'text');
+  await ensureColumn(db, 'tiktok_tokens', 'shop_cipher', 'VARCHAR(200)', 'varchar');
 
   await db.end();
   console.log('DB tables ready');
