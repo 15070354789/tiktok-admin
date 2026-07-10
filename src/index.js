@@ -68,16 +68,20 @@ async function initDB() {
 }
 
 // ─── TikTok Sign (V2) ─────────────────────────────────────────────────────────
-// V2签名规则：APP_SECRET + path + 排序后的query参数(不含sign/access_token) + APP_SECRET，再HMAC-SHA256
-function generateSign(path, params) {
+// V2签名规则：secret + path + 排序后的query参数(不含sign/access_token) + body(仅POST且非multipart时需要) + secret，再HMAC-SHA256
+// 关键点：POST请求如果Content-Type是application/json，请求体必须参与签名计算，否则会返回106001 Invalid sign
+function generateSign(path, params, body = '') {
   const sortedKeys = Object.keys(params).sort();
-  let str = APP_SECRET + path;
+  let str = path;
   for (const key of sortedKeys) {
     if (key !== 'sign' && key !== 'access_token') {
       str += key + params[key];
     }
   }
-  str += APP_SECRET;
+  if (body) {
+    str += body;
+  }
+  str = APP_SECRET + str + APP_SECRET;
   return crypto.createHmac('sha256', APP_SECRET).update(str).digest('hex');
 }
 
@@ -88,7 +92,7 @@ async function getShopInfo(accessToken) {
   const path = '/authorization/202309/shops';
   const timestamp = Math.floor(Date.now() / 1000);
   const params = { app_key: APP_KEY, timestamp };
-  params.sign = generateSign(path, params);
+  params.sign = generateSign(path, params); // GET请求，无body
   const url = 'https://open-api.tiktokglobalshop.com' + path;
   const res = await axios.get(url, {
     params,
@@ -109,24 +113,32 @@ async function syncOrders(shopId, accessToken, shopName, shopCipher) {
     app_key: APP_KEY,
     timestamp,
     shop_cipher: shopCipher,
-    shop_id: shopId,        
-    version: '202309', 
+    shop_id: shopId,
+    version: '202309',
     page_size: 50,
     sort_field: 'create_time',
     sort_order: 'DESC',
   };
-  params.sign = generateSign(path, params);
+
+  // POST请求且Content-Type为application/json，body必须序列化后参与签名计算
+  const requestBody = {
+    create_time_ge: createTimeFrom,
+    create_time_lt: timestamp,
+  };
+  const bodyString = JSON.stringify(requestBody);
+
+  params.sign = generateSign(path, params, bodyString);
 
   try {
     const res = await axios.post(
       'https://open-api.tiktokglobalshop.com' + path,
+      requestBody,
       {
-        create_time_ge: createTimeFrom,
-        create_time_lt: timestamp,
-      },
-      {
-        params: { ...params, access_token: accessToken }, 
-        headers: { 'x-tts-access-token': accessToken },
+        params: { ...params, access_token: accessToken },
+        headers: {
+          'x-tts-access-token': accessToken,
+          'Content-Type': 'application/json',
+        },
       }
     );
 
