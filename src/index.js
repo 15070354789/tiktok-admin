@@ -142,11 +142,15 @@ async function syncOrders(shopId, accessToken, shopName, shopCipher) {
       }
     );
 
+    // 调试用：打印完整响应，确认TikTok到底返回了什么
+    console.log(`[DEBUG] Sync response for shop ${shopId}:`, JSON.stringify(res.data));
+
     if (res.data?.code !== 0) {
       throw new Error(`TikTok API error: ${JSON.stringify(res.data)}`);
     }
 
     const orders = res.data?.data?.order_list || [];
+    console.log(`[DEBUG] Shop ${shopId} matched ${orders.length} orders, time range: ${createTimeFrom} - ${timestamp}`);
     for (const order of orders) {
       await db.execute(
         `INSERT INTO tiktok_orders (order_id, shop_id, shop_name, status, total_amount, currency, create_time, buyer_uid, sku_list)
