@@ -215,11 +215,11 @@ function requireLogin(req, res, next) {
 
 // ─── HTML helpers ─────────────────────────────────────────────────────────────
 const layout = (title, body) => `<!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title} — 恒春出海 TikTok Shop</title>
+<title>${title} — Hengchun Global TikTok Shop</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f0f14;color:#e2e2e8;min-height:100vh}
@@ -276,17 +276,17 @@ const layout = (title, body) => `<!DOCTYPE html>
 
 function statusBadge(status) {
   const map = {
-    UNPAID: ['badge-yellow', '待付款'],
-    ON_HOLD: ['badge-yellow', '暂停'],
-    PARTIALLY_SHIPPING: ['badge-blue', '部分发货'],
-    AWAITING_SHIPMENT: ['badge-blue', '待发货'],
-    AWAITING_COLLECTION: ['badge-blue', '待揽收'],
-    IN_TRANSIT: ['badge-blue', '运输中'],
-    DELIVERED: ['badge-green', '已送达'],
-    COMPLETED: ['badge-green', '已完成'],
-    CANCELLED: ['badge-red', '已取消'],
+    UNPAID: ['badge-yellow', 'Unpaid'],
+    ON_HOLD: ['badge-yellow', 'On Hold'],
+    PARTIALLY_SHIPPING: ['badge-blue', 'Partially Shipped'],
+    AWAITING_SHIPMENT: ['badge-blue', 'Awaiting Shipment'],
+    AWAITING_COLLECTION: ['badge-blue', 'Awaiting Collection'],
+    IN_TRANSIT: ['badge-blue', 'In Transit'],
+    DELIVERED: ['badge-green', 'Delivered'],
+    COMPLETED: ['badge-green', 'Completed'],
+    CANCELLED: ['badge-red', 'Cancelled'],
   };
-  const [cls, label] = map[status] || ['badge-gray', status || '未知'];
+  const [cls, label] = map[status] || ['badge-gray', status || 'Unknown'];
   return `<span class="badge ${cls}">${label}</span>`;
 }
 
@@ -294,21 +294,21 @@ function statusBadge(status) {
 
 // Login
 app.get('/login', (req, res) => {
-  res.send(layout('登录', `
+  res.send(layout('Login', `
     <div class="login-wrap">
       <div class="login-box">
         <div class="login-logo">
           <div class="icon">🛍️</div>
-          <h1>恒春出海</h1>
-          <p>TikTok Shop 订单管理系统</p>
+          <h1>Hengchun Global</h1>
+          <p>TikTok Shop Order Management System</p>
         </div>
-        ${req.query.error ? '<div class="error">账号或密码错误，请重试</div>' : ''}
+        ${req.query.error ? '<div class="error">Incorrect username or password, please try again</div>' : ''}
         <form method="POST" action="/login">
-          <label>账号</label>
-          <input type="text" name="username" placeholder="请输入账号" autocomplete="username">
-          <label>密码</label>
-          <input type="password" name="password" placeholder="请输入密码" autocomplete="current-password">
-          <button type="submit" class="btn btn-primary" style="width:100%;padding:12px">登录</button>
+          <label>Username</label>
+          <input type="text" name="username" placeholder="Enter your username" autocomplete="username">
+          <label>Password</label>
+          <input type="password" name="password" placeholder="Enter your password" autocomplete="current-password">
+          <button type="submit" class="btn btn-primary" style="width:100%;padding:12px">Log In</button>
         </form>
       </div>
     </div>
@@ -351,55 +351,55 @@ app.get(['/', '/dashboard'], requireLogin, async (req, res) => {
 
   const authUrl = `https://services.tiktok.com/open/authorize?service_id=${APP_KEY}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
 
-  res.send(layout('控制台', `
+  res.send(layout('Dashboard', `
     <nav class="nav">
-      <div class="logo"><span>TK</span> 恒春出海订单系统</div>
+      <div class="logo"><span>TK</span> Hengchun Global Order System</div>
       <div>
-        <a href="/dashboard">控制台</a>
-        <a href="/orders">订单管理</a>
-        <a href="/shops">店铺授权</a>
-        <a href="/logout">退出</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/orders">Order Management</a>
+        <a href="/shops">Shop Authorization</a>
+        <a href="/logout">Log Out</a>
       </div>
     </nav>
     <div class="container">
-      <div class="page-title">控制台</div>
-      <div class="page-sub">TikTok Shop 越南站订单数据概览</div>
+      <div class="page-title">Dashboard</div>
+      <div class="page-sub">TikTok Shop Vietnam order data overview</div>
 
       ${!hasShops ? `
         <div class="alert alert-info">
-          ⚠️ 尚未授权任何店铺。<a href="${authUrl}" style="color:#fff;font-weight:600">点击此处授权你的TikTok Shop店铺</a>，授权后即可同步订单数据。
+          ⚠️ No shops authorized yet. <a href="${authUrl}" style="color:#fff;font-weight:600">Click here to authorize your TikTok Shop</a>, then you can sync order data.
         </div>
       ` : ''}
 
       ${req.query.error === 'sync' ? `
         <div class="alert" style="background:#2e0d14;border:1px solid #5c1a2e;color:#ff4d6a">
-          ⚠️ 同步过程中发生错误，请查看服务器日志了解详情。
+          ⚠️ An error occurred during sync. Please check the server logs for details.
         </div>
       ` : ''}
 
       <div class="stats">
         <div class="stat">
-          <div class="label">总订单数</div>
+          <div class="label">Total Orders</div>
           <div class="value">${s.total || 0}</div>
-          <div class="sub">所有状态</div>
+          <div class="sub">All Statuses</div>
         </div>
         <div class="stat">
-          <div class="label">已完成</div>
+          <div class="label">Completed</div>
           <div class="value" style="color:#3dd68c">${s.completed || 0}</div>
           <div class="sub">COMPLETED</div>
         </div>
         <div class="stat">
-          <div class="label">待发货</div>
+          <div class="label">Awaiting Shipment</div>
           <div class="value" style="color:#4da3ff">${s.pending || 0}</div>
           <div class="sub">AWAITING SHIPMENT</div>
         </div>
         <div class="stat">
-          <div class="label">已取消</div>
+          <div class="label">Cancelled</div>
           <div class="value" style="color:#ff4d6a">${s.cancelled || 0}</div>
           <div class="sub">CANCELLED</div>
         </div>
         <div class="stat">
-          <div class="label">总收入</div>
+          <div class="label">Total Revenue</div>
           <div class="value" style="color:#f4a523">${Number(s.revenue || 0).toLocaleString()}</div>
           <div class="sub">VND</div>
         </div>
@@ -407,21 +407,21 @@ app.get(['/', '/dashboard'], requireLogin, async (req, res) => {
 
       <div class="card">
         <div class="section-header">
-          <div style="font-weight:600">最近订单</div>
+          <div style="font-weight:600">Recent Orders</div>
           <div style="display:flex;gap:10px">
-            <a href="/api/sync" class="btn btn-ghost" style="font-size:13px">🔄 同步数据</a>
-            <a href="/orders" class="btn btn-ghost" style="font-size:13px">查看全部</a>
+            <a href="/api/sync" class="btn btn-ghost" style="font-size:13px">🔄 Sync Data</a>
+            <a href="/orders" class="btn btn-ghost" style="font-size:13px">View All</a>
           </div>
         </div>
         ${hasOrders ? `
         <table>
           <thead>
             <tr>
-              <th>订单号</th>
-              <th>店铺</th>
-              <th>金额</th>
-              <th>状态</th>
-              <th>下单时间</th>
+              <th>Order ID</th>
+              <th>Shop</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Order Time</th>
             </tr>
           </thead>
           <tbody>
@@ -431,15 +431,15 @@ app.get(['/', '/dashboard'], requireLogin, async (req, res) => {
               <td><span class="shop-tag">${o.shop_name || o.shop_id}</span></td>
               <td>${Number(o.total_amount).toLocaleString()} ${o.currency}</td>
               <td>${statusBadge(o.status)}</td>
-              <td>${o.create_time ? new Date(o.create_time * 1000).toLocaleString('zh-CN') : '-'}</td>
+              <td>${o.create_time ? new Date(o.create_time * 1000).toLocaleString('en-US') : '-'}</td>
             </tr>`).join('')}
           </tbody>
         </table>
         ` : `
         <div class="empty">
           <div class="icon">📦</div>
-          <div>暂无订单数据</div>
-          <div style="margin-top:8px;font-size:13px">请先授权店铺后点击"同步数据"</div>
+          <div>No order data yet</div>
+          <div style="margin-top:8px;font-size:13px">Please authorize a shop first, then click "Sync Data"</div>
         </div>
         `}
       </div>
@@ -459,22 +459,22 @@ app.get('/orders', requireLogin, async (req, res) => {
 
   const statuses = ['AWAITING_SHIPMENT','IN_TRANSIT','DELIVERED','COMPLETED','CANCELLED','UNPAID'];
 
-  res.send(layout('订单管理', `
+  res.send(layout('Order Management', `
     <nav class="nav">
-      <div class="logo"><span>TK</span> 恒春出海订单系统</div>
+      <div class="logo"><span>TK</span> Hengchun Global Order System</div>
       <div>
-        <a href="/dashboard">控制台</a>
-        <a href="/orders">订单管理</a>
-        <a href="/shops">店铺授权</a>
-        <a href="/logout">退出</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/orders">Order Management</a>
+        <a href="/shops">Shop Authorization</a>
+        <a href="/logout">Log Out</a>
       </div>
     </nav>
     <div class="container">
-      <div class="page-title">订单管理</div>
-      <div class="page-sub">共 ${orders.length} 条订单记录</div>
+      <div class="page-title">Order Management</div>
+      <div class="page-sub">${orders.length} order records total</div>
 
       <div style="margin-bottom:20px;display:flex;gap:8px;flex-wrap:wrap">
-        <a href="/orders" class="btn btn-ghost" style="font-size:13px;padding:7px 14px">全部</a>
+        <a href="/orders" class="btn btn-ghost" style="font-size:13px;padding:7px 14px">All</a>
         ${statuses.map(s => `<a href="/orders?status=${s}" class="btn btn-ghost" style="font-size:13px;padding:7px 14px">${statusBadge(s)}</a>`).join('')}
       </div>
 
@@ -483,12 +483,12 @@ app.get('/orders', requireLogin, async (req, res) => {
         <table>
           <thead>
             <tr>
-              <th>订单号</th>
-              <th>店铺</th>
-              <th>买家UID</th>
-              <th>金额</th>
-              <th>状态</th>
-              <th>下单时间</th>
+              <th>Order ID</th>
+              <th>Shop</th>
+              <th>Buyer UID</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Order Time</th>
             </tr>
           </thead>
           <tbody>
@@ -499,14 +499,14 @@ app.get('/orders', requireLogin, async (req, res) => {
               <td style="font-size:12px;color:#9999aa">${o.buyer_uid || '-'}</td>
               <td>${Number(o.total_amount).toLocaleString()} ${o.currency}</td>
               <td>${statusBadge(o.status)}</td>
-              <td>${o.create_time ? new Date(o.create_time * 1000).toLocaleString('zh-CN') : '-'}</td>
+              <td>${o.create_time ? new Date(o.create_time * 1000).toLocaleString('en-US') : '-'}</td>
             </tr>`).join('')}
           </tbody>
         </table>
         ` : `
         <div class="empty">
           <div class="icon">📦</div>
-          <div>暂无订单数据</div>
+          <div>No order data yet</div>
         </div>
         `}
       </div>
@@ -521,29 +521,29 @@ app.get('/shops', requireLogin, async (req, res) => {
   await db.end();
   const authUrl = `https://services.tiktok.com/open/authorize?service_id=${APP_KEY}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
 
-  res.send(layout('店铺授权', `
+  res.send(layout('Shop Authorization', `
     <nav class="nav">
-      <div class="logo"><span>TK</span> 恒春出海订单系统</div>
+      <div class="logo"><span>TK</span> Hengchun Global Order System</div>
       <div>
-        <a href="/dashboard">控制台</a>
-        <a href="/orders">订单管理</a>
-        <a href="/shops">店铺授权</a>
-        <a href="/logout">退出</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/orders">Order Management</a>
+        <a href="/shops">Shop Authorization</a>
+        <a href="/logout">Log Out</a>
       </div>
     </nav>
     <div class="container">
-      <div class="page-title">店铺授权</div>
-      <div class="page-sub">管理已授权的 TikTok Shop 越南站店铺</div>
+      <div class="page-title">Shop Authorization</div>
+      <div class="page-sub">Manage authorized TikTok Shop Vietnam stores</div>
 
       <div style="margin-bottom:20px">
-        <a href="${authUrl}" class="btn btn-primary">+ 授权新店铺</a>
+        <a href="${authUrl}" class="btn btn-primary">+ Authorize New Shop</a>
       </div>
 
       <div class="card">
         ${shops.length > 0 ? `
         <table>
           <thead>
-            <tr><th>店铺名称</th><th>Shop ID</th><th>Shop Cipher</th><th>Token状态</th><th>更新时间</th></tr>
+            <tr><th>Shop Name</th><th>Shop ID</th><th>Shop Cipher</th><th>Token Status</th><th>Updated At</th></tr>
           </thead>
           <tbody>
             ${shops.map(s => {
@@ -552,11 +552,11 @@ app.get('/shops', requireLogin, async (req, res) => {
               <tr>
                 <td>${s.shop_name || '-'}</td>
                 <td style="font-family:monospace;font-size:13px">${s.shop_id}</td>
-                <td style="font-family:monospace;font-size:12px">${s.shop_cipher ? '✅ 已获取' : '❌ 缺失'}</td>
+                <td style="font-family:monospace;font-size:12px">${s.shop_cipher ? '✅ Obtained' : '❌ Missing'}</td>
                 <td>${expired
-                  ? '<span class="badge badge-red">已过期</span>'
-                  : '<span class="badge badge-green">有效</span>'}</td>
-                <td>${s.updated_at ? new Date(s.updated_at).toLocaleString('zh-CN') : '-'}</td>
+                  ? '<span class="badge badge-red">Expired</span>'
+                  : '<span class="badge badge-green">Valid</span>'}</td>
+                <td>${s.updated_at ? new Date(s.updated_at).toLocaleString('en-US') : '-'}</td>
               </tr>`;
             }).join('')}
           </tbody>
@@ -564,9 +564,9 @@ app.get('/shops', requireLogin, async (req, res) => {
         ` : `
         <div class="empty">
           <div class="icon">🏪</div>
-          <div>尚未授权任何店铺</div>
+          <div>No shops authorized yet</div>
           <div style="margin-top:12px">
-            <a href="${authUrl}" class="btn btn-primary">立即授权</a>
+            <a href="${authUrl}" class="btn btn-primary">Authorize Now</a>
           </div>
         </div>
         `}
@@ -596,7 +596,7 @@ app.get('/auth/callback', async (req, res) => {
     }
 
     if (!data?.access_token) {
-      return res.send('授权失败: ' + JSON.stringify(tokenRes.data));
+      return res.send('Authorization failed: ' + JSON.stringify(tokenRes.data));
     }
 
     // 拿到access_token后，调用获取店铺信息接口拿shop_cipher
@@ -629,7 +629,7 @@ app.get('/auth/callback', async (req, res) => {
     res.redirect('/dashboard?auth=success');
   } catch (e) {
     console.error(e?.response?.data || e.message);
-    res.send('授权失败: ' + (e?.response?.data ? JSON.stringify(e.response.data) : e.message));
+    res.send('Authorization failed: ' + (e?.response?.data ? JSON.stringify(e.response.data) : e.message));
   }
 });
 
